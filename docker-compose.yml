@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Main FastAPI Application
+  api:
+    build: .
+    container_name: document-analyzer-api
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_URL=${OPENAI_URL}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - PRESIDIO_ANALYZER_URL=http://presidio-analyzer:3000
+      - PRESIDIO_ANONYMIZER_URL=http://presidio-anonymizer:3000
+      - ENVIRONMENT=development
+    volumes:
+      - ./app:/app/app
+      - ./main.py:/app/main.py
+    depends_on:
+      - presidio-analyzer
+      - presidio-anonymizer
+    networks:
+      - doc_analyzer_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Presidio Analyzer (PII Detection)
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio-analyzer:latest
+    container_name: presidio-analyzer
+    ports:
+      - "5002:3000"
+    networks:
+      - doc_analyzer_network
+    environment:
+      - GRPC_PORT=3001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Presidio Anonymizer (PII Anonymization)
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:latest
+    container_name: presidio-anonymizer
+    ports:
+      - "5001:3000"
+    networks:
+      - doc_analyzer_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  doc_analyzer_network:
+    driver: bridge
