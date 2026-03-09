@@ -1,4 +1,4 @@
-# Private AI Document Analyzer with PII Anonymization
+# Sentinel Extract - Private AI Document Analyzer with PII Anonymization
 
 **Extract structured data from PDF documents while preserving privacy through automatic PII detection and anonymization.**
 
