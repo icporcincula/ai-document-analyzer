@@ -26,7 +26,7 @@ services:
       - doc_analyzer_network
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Presidio Analyzer (PII Detection)
+  # Presidio Analyzer
   presidio-analyzer:
     image: mcr.microsoft.com/presidio-analyzer:latest
     container_name: presidio-analyzer
@@ -42,7 +42,7 @@ services:
       timeout: 5s
       retries: 3
 
-  # Presidio Anonymizer (PII Anonymization)
+  # Presidio Anonymizer
   presidio-anonymizer:
     image: mcr.microsoft.com/presidio-anonymizer:latest
     container_name: presidio-anonymizer
