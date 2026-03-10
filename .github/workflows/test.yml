@@ -101,7 +101,7 @@ jobs:
         coverage report --show-missing
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
@@ -109,7 +109,7 @@ jobs:
         fail_ci_if_error: false
 
     - name: Upload coverage reports to GitHub Actions
-      uses: codecov/upload-action@v2
+      uses: codecov/upload-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
