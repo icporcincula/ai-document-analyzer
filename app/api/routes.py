@@ -1,5 +1,5 @@
 # app/api/routes.py
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from typing import Optional
 import time
 import uuid
@@ -14,6 +14,9 @@ from app.models.schemas import (
 from app.services.pdf_service import PDFService
 from app.services.presidio_client import PresidioClient
 from app.services.extraction_service import ExtractionService
+from app.middleware.auth import get_api_key_auth
+from app.middleware.rate_limit import limiter
+from pydantic import BaseModel, Field, validator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,9 +26,35 @@ pdf_service = PDFService()
 presidio_client = PresidioClient()
 extraction_service = ExtractionService()
 
+class AnalyzeDocumentRequest(BaseModel):
+    """Enhanced request validation for document analysis"""
+    document_type: DocumentType = Field(
+        default=DocumentType.auto,
+        description="Type of document: contract, invoice, resume, auto"
+    )
+    enable_ocr: bool = Field(
+        default=True,
+        description="Enable OCR for scanned PDFs"
+    )
+    anonymize_pii: bool = Field(
+        default=True,
+        description="Anonymize PII before sending to LLM"
+    )
+    
+    @validator('document_type')
+    def validate_document_type(cls, v):
+        """Validate document type enum values strictly"""
+        valid_types = [dt.value for dt in DocumentType]
+        if v.value not in valid_types:
+            raise ValueError(f"Invalid document type. Must be one of: {', '.join(valid_types)}")
+        return v
+
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check():
+@limiter.limit("100 per minute")
+async def health_check(
+    auth: str = Depends(get_api_key_auth)
+):
     """Health check endpoint — reports status of Presidio dependencies."""
     presidio_health = await presidio_client.health_check()
 
@@ -40,6 +69,7 @@ async def health_check():
 
 
 @router.post("/analyze", response_model=DocumentAnalysisResponse)
+@limiter.limit("10 per minute")
 async def analyze_document(
     file: UploadFile = File(...),
     document_type: DocumentType = Query(
@@ -48,7 +78,29 @@ async def analyze_document(
     ),
     enable_ocr: bool = Query(default=True, description="Enable OCR for scanned PDFs"),
     anonymize_pii: bool = Query(default=True, description="Anonymize PII before sending to LLM"),
+    auth: str = Depends(get_api_key_auth)
 ):
+    """Enhanced parameter validation for document analysis endpoint"""
+    
+    # Validate document type parameter
+    if document_type.value not in [dt.value for dt in DocumentType]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid document type. Must be one of: {', '.join([dt.value for dt in DocumentType])}"
+        )
+    
+    # Validate boolean parameters
+    if not isinstance(enable_ocr, bool):
+        raise HTTPException(
+            status_code=400,
+            detail="enable_ocr must be a boolean value"
+        )
+    
+    if not isinstance(anonymize_pii, bool):
+        raise HTTPException(
+            status_code=400,
+            detail="anonymize_pii must be a boolean value"
+        )
     """
     Analyze a PDF document with optional PII anonymization.
 

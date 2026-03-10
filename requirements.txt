@@ -15,6 +15,10 @@ openai==1.10.0
 # HTTP Client for Presidio
 httpx==0.26.0
 
+# Security & Authentication
+slowapi==0.1.9
+aioredis==2.0.1
+
 # Utilities
 pydantic==2.5.3
 pydantic-settings==2.1.0
