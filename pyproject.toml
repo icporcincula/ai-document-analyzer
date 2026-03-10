@@ -1,0 +1,109 @@
+[tool.pytest.ini_options]
+# Test discovery patterns
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Test execution options
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml",
+    "--cov-fail-under=90",
+    "-v"
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__init__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "@abstract"
+]
+show_missing = true
+precision = 2
+
+# Code formatting with Black
+[tool.black]
+line-length = 88
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# Linting with Ruff
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+extend-exclude = ["tests/"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = false
+known-first-party = ["app"]
+
+# Type checking with mypy
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pdf2image.*",
+    "pytesseract.*",
+    "pypdf.*",
+    "openai.*",
+    "httpx.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "pydantic.*",
+    "slowapi.*",
+    "aioredis.*",
+]
+ignore_missing_imports = true
