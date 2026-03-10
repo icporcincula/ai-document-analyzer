@@ -17,6 +17,8 @@ from app.services.extraction_service import ExtractionService
 from app.services.language_detection import LanguageDetectionService
 from app.services.custom_entity_service import CustomEntityService
 from app.services.preprocessing_service import FormatDetectionService
+from app.services.task_result_service import TaskResultService
+from app.services.export_service import ExportService
 from app.middleware.auth import get_api_key_auth
 from app.middleware.rate_limit import limiter
 from pydantic import BaseModel, Field, validator
@@ -28,6 +30,8 @@ router = APIRouter()
 pdf_service = PDFService()
 presidio_client = PresidioClient()
 extraction_service = ExtractionService()
+task_result_service = TaskResultService()
+export_service = ExportService()
 
 class AnalyzeDocumentRequest(BaseModel):
     """Enhanced request validation for document analysis"""
@@ -187,6 +191,184 @@ async def analyze_document(
     except Exception as e:
         logger.error(f"Error processing document {document_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error processing document: {str(e)}")
+
+
+@router.get("/results/{task_id}")
+@limiter.limit("100 per minute")
+async def get_analysis_results(
+    task_id: str,
+    auth: str = Depends(get_api_key_auth)
+):
+    """Get analysis results for a specific task."""
+    try:
+        result = await task_result_service.get_task_result(task_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving results for task {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving results: {str(e)}")
+
+
+@router.get("/history")
+@limiter.limit("50 per minute")
+async def get_document_history(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Page size"),
+    search: str = Query("", description="Search term"),
+    auth: str = Depends(get_api_key_auth)
+):
+    """Get document processing history with pagination and search."""
+    try:
+        history = await task_result_service.get_task_history(
+            page=page,
+            page_size=page_size,
+            search=search
+        )
+        return history
+    except Exception as e:
+        logger.error(f"Error retrieving history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving history: {str(e)}")
+
+
+@router.delete("/history/{task_id}")
+@limiter.limit("20 per minute")
+async def delete_document_result(
+    task_id: str,
+    auth: str = Depends(get_api_key_auth)
+):
+    """Delete a specific document result."""
+    try:
+        success = await task_result_service.delete_task_result(task_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        return {"message": "Task deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting task {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting task: {str(e)}")
+
+
+@router.get("/export/{task_id}/csv")
+@limiter.limit("20 per minute")
+async def export_to_csv(
+    task_id: str,
+    auth: str = Depends(get_api_key_auth)
+):
+    """Export analysis results to CSV format."""
+    try:
+        csv_content = await export_service.export_to_csv(task_id)
+        if not csv_content:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        from fastapi.responses import Response
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=results_{task_id}.csv"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting CSV for task {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error exporting CSV: {str(e)}")
+
+
+@router.get("/export/{task_id}/excel")
+@limiter.limit("20 per minute")
+async def export_to_excel(
+    task_id: str,
+    auth: str = Depends(get_api_key_auth)
+):
+    """Export analysis results to Excel format."""
+    try:
+        excel_content = await export_service.export_to_excel(task_id)
+        if not excel_content:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        from fastapi.responses import Response
+        return Response(
+            content=excel_content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=results_{task_id}.xlsx"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting Excel for task {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error exporting Excel: {str(e)}")
+
+
+@router.get("/export/{task_id}/json")
+@limiter.limit("20 per minute")
+async def export_to_json(
+    task_id: str,
+    auth: str = Depends(get_api_key_auth)
+):
+    """Export analysis results to JSON format."""
+    try:
+        json_content = await export_service.export_to_json(task_id)
+        if not json_content:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        from fastapi.responses import Response
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=results_{task_id}.json"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting JSON for task {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error exporting JSON: {str(e)}")
+
+
+@router.get("/export/history/csv")
+@limiter.limit("10 per minute")
+async def export_history_to_csv(
+    search: str = Query("", description="Search term"),
+    auth: str = Depends(get_api_key_auth)
+):
+    """Export document history to CSV format."""
+    try:
+        csv_content = await export_service.export_history_to_csv(search=search)
+        
+        from fastapi.responses import Response
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=document_history.csv"}
+        )
+    except Exception as e:
+        logger.error(f"Error exporting history CSV: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error exporting history CSV: {str(e)}")
+
+
+@router.get("/metrics")
+@limiter.limit("100 per minute")
+async def get_metrics(
+    auth: str = Depends(get_api_key_auth)
+):
+    """Get application metrics summary."""
+    try:
+        from app.metrics.custom_metrics import get_metrics
+        metrics = get_metrics()
+        summary = metrics.get_metrics_summary()
+        
+        return {
+            "success": True,
+            "metrics": summary,
+            "timestamp": datetime.utcnow()
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving metrics: {str(e)}")
 
 
 @router.post("/analyze-multi-format", response_model=DocumentAnalysisResponse)

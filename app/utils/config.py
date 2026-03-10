@@ -2,6 +2,7 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import List, Optional
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     # OpenAI Configuration
@@ -71,3 +72,6 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings():
     return Settings()
+
+# Alias for backward compatibility
+get_config = get_settings

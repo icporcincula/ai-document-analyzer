@@ -9,8 +9,15 @@ import logging
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 import mimetypes
-import magic
 import hashlib
+
+# Try to import magic for better file detection, fall back to mimetypes if it fails
+try:
+    import magic
+    MAGIC_AVAILABLE = True
+except ImportError:
+    MAGIC_AVAILABLE = False
+    logging.warning("python-magic not available, falling back to mimetypes for file detection")
 
 from app.utils.config import get_config
 from app.exceptions import DocumentProcessingError
@@ -353,10 +360,10 @@ class DocumentPreprocessingService:
             Maximum file size in bytes
         """
         size_limits = {
-            'pdf': self.config.pdf.max_file_size,
-            'docx': self.config.docx.max_file_size,
-            'image': self.config.image.max_file_size,
-            'text': self.config.text.max_file_size
+            'pdf': self.config.pdf_max_file_size,
+            'docx': self.config.docx_max_file_size,
+            'image': self.config.image_max_file_size,
+            'text': self.config.text_max_file_size
         }
         
         return size_limits.get(format_type, 10 * 1024 * 1024)  # Default 10MB

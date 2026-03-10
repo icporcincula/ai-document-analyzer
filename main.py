@@ -11,6 +11,7 @@ from app.utils.config import get_settings
 from app.middleware.rate_limit import create_limiter, rate_limit_exceeded_handler
 from app.middleware.audit import AuditLoggingMiddleware
 from app.middleware.security import SecurityHeadersMiddleware
+from app.middleware.metrics import setup_metrics_middleware
 from app.exceptions.handlers import setup_exception_handlers
 from app.utils.config_validator import validate_config_on_startup
 
@@ -57,6 +58,9 @@ app.add_middleware(AuditLoggingMiddleware)
 
 # Add security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Add metrics middleware
+app = setup_metrics_middleware(app)
 
 # Validate configuration on startup
 validate_config_on_startup()

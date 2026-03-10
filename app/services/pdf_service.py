@@ -256,9 +256,9 @@ class PDFService:
         try:
             # Check file size
             file_size = file_path.stat().st_size
-            if file_size > config.pdf.max_file_size:
+            if file_size > config.pdf_max_file_size:
                 raise DocumentProcessingError(
-                    f"PDF file too large: {file_size} bytes (max: {config.pdf.max_file_size})"
+                    f"PDF file too large: {file_size} bytes (max: {config.pdf_max_file_size})"
                 )
             
             # Try to open PDF
@@ -331,7 +331,7 @@ class PDFService:
             # Convert PDF to images
             images = convert_from_path(
                 str(file_path),
-                dpi=config.pdf.pdf_ocr_dpi,
+                dpi=config.pdf_ocr_dpi,
                 fmt='jpeg'
             )
             
@@ -340,7 +340,7 @@ class PDFService:
             
             for i, image in enumerate(images):
                 # Configure OCR
-                ocr_config = f"--psm 6 --oem 3 -l {config.pdf.pdf_ocr_language}"
+                ocr_config = f"--psm 6 --oem 3 -l {config.pdf_ocr_language}"
                 
                 # Extract text
                 text = pytesseract.image_to_string(image, config=ocr_config)
