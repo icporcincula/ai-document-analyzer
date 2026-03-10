@@ -1,0 +1,181 @@
+# Custom Entity Configuration for PII Detection
+# This file defines domain-specific PII patterns that can be detected
+# in addition to the standard Presidio entities.
+
+entities:
+  # Healthcare-specific entities
+  - name: "MEDICAL_RECORD_NUMBER"
+    pattern: r'\b[Mm][Rr][Nn]\s*[:\-]?\s*[A-Za-z0-9]{6,12}\b'
+    description: "Medical Record Number (MRN)"
+    confidence: 0.9
+    context: ["medical", "health", "patient", "record", "hospital"]
+    enabled: true
+
+  - name: "PATIENT_ID"
+    pattern: r'\b[Pp][Ii][Dd]\s*[:\-]?\s*[A-Za-z0-9]{8,15}\b'
+    description: "Patient Identification Number"
+    confidence: 0.85
+    context: ["patient", "medical", "health", "treatment"]
+    enabled: true
+
+  - name: "CLINIC_ID"
+    pattern: r'\b[Cc][Ll][Ii][Nn][Ii][Cc]\s*[:\-]?\s*[A-Za-z0-9]{4,8}\b'
+    description: "Clinic Identification Number"
+    confidence: 0.8
+    context: ["clinic", "medical", "healthcare", "facility"]
+    enabled: true
+
+  # Financial-specific entities
+  - name: "ACCOUNT_NUMBER"
+    pattern: r'\b[Aa][Cc][Cc][Tt]\s*[:\-]?\s*[0-9]{8,16}\b'
+    description: "Bank Account Number"
+    confidence: 0.9
+    context: ["account", "bank", "financial", "transaction", "payment"]
+    enabled: true
+
+  - name: "REFERENCE_NUMBER"
+    pattern: r'\b[Rr][Ee][Ff]\s*[:\-]?\s*[A-Za-z0-9]{8,12}\b'
+    description: "Transaction Reference Number"
+    confidence: 0.85
+    context: ["transaction", "payment", "reference", "confirmation"]
+    enabled: true
+
+  - name: "INVOICE_NUMBER"
+    pattern: r'\b[Ii][Nn][Vv]\s*[:\-]?\s*[A-Za-z0-9]{6,12}\b'
+    description: "Invoice Number"
+    confidence: 0.8
+    context: ["invoice", "bill", "payment", "charge"]
+    enabled: true
+
+  # Legal-specific entities
+  - name: "CASE_NUMBER"
+    pattern: r'\b[Cc][Aa][Ss][Ee]\s*[:\-]?\s*[A-Za-z0-9\-]{8,20}\b'
+    description: "Legal Case Number"
+    confidence: 0.9
+    context: ["case", "court", "legal", "judicial", "lawsuit"]
+    enabled: true
+
+  - name: "DOCKET_NUMBER"
+    pattern: r'\b[Dd][Oo][Cc][Kk][Ee][Tt]\s*[:\-]?\s*[A-Za-z0-9\-]{6,15}\b'
+    description: "Court Docket Number"
+    confidence: 0.85
+    context: ["docket", "court", "legal", "case", "filing"]
+    enabled: true
+
+  - name: "JUDGE_CODE"
+    pattern: r'\b[Jj][Dd][Gg]\s*[:\-]?\s*[A-Za-z0-9]{3,6}\b'
+    description: "Judge Code or Identifier"
+    confidence: 0.8
+    context: ["judge", "court", "legal", "judicial"]
+    enabled: true
+
+  # Corporate-specific entities
+  - name: "EMPLOYEE_ID"
+    pattern: r'\b[Ee][Mm][Pp]\s*[:\-]?\s*[A-Za-z0-9]{6,12}\b'
+    description: "Employee Identification Number"
+    confidence: 0.9
+    context: ["employee", "staff", "worker", "personnel", "HR"]
+    enabled: true
+
+  - name: "DEPARTMENT_CODE"
+    pattern: r'\b[Dd][Ee][Pp][Tt]\s*[:\-]?\s*[A-Za-z0-9]{3,8}\b'
+    description: "Department Code"
+    confidence: 0.8
+    context: ["department", "division", "unit", "section"]
+    enabled: true
+
+  - name: "PROJECT_CODE"
+    pattern: r'\b[Pp][Rr][Oo][Jj]\s*[:\-]?\s*[A-Za-z0-9]{4,10}\b'
+    description: "Project Code or Identifier"
+    confidence: 0.85
+    context: ["project", "initiative", "program", "development"]
+    enabled: true
+
+  # Technology-specific entities
+  - name: "DEVICE_ID"
+    pattern: r'\b[Dd][Ee][Vv]\s*[:\-]?\s*[A-Za-z0-9]{8,16}\b'
+    description: "Device Identification Number"
+    confidence: 0.8
+    context: ["device", "hardware", "equipment", "technology"]
+    enabled: true
+
+  - name: "LICENSE_KEY"
+    pattern: r'\b[Ll][Ii][Cc]\s*[:\-]?\s*[A-Za-z0-9\-]{12,25}\b'
+    description: "Software License Key"
+    confidence: 0.9
+    context: ["license", "software", "activation", "key", "product"]
+    enabled: true
+
+  - name: "API_KEY"
+    pattern: r'\b[Aa][Pp][Ii]\s*[:\-]?\s*[A-Za-z0-9]{16,32}\b'
+    description: "API Key or Token"
+    confidence: 0.95
+    context: ["API", "token", "authentication", "access", "integration"]
+    enabled: true
+
+  # Educational-specific entities
+  - name: "STUDENT_ID"
+    pattern: r'\b[Ss][Tt][Uu][Dd]\s*[:\-]?\s*[A-Za-z0-9]{6,12}\b'
+    description: "Student Identification Number"
+    confidence: 0.9
+    context: ["student", "pupil", "learner", "education", "school"]
+    enabled: true
+
+  - name: "COURSE_CODE"
+    pattern: r'\b[Cc][Oo][Uu][Rr][Ss][Ee]\s*[:\-]?\s*[A-Za-z0-9]{4,8}\b'
+    description: "Course Code or Number"
+    confidence: 0.8
+    context: ["course", "class", "subject", "module", "education"]
+    enabled: true
+
+  - name: "ENROLLMENT_ID"
+    pattern: r'\b[Ee][Nn][Rr]\s*[:\-]?\s*[A-Za-z0-9]{8,15}\b'
+    description: "Enrollment or Registration ID"
+    confidence: 0.85
+    context: ["enrollment", "registration", "admission", "student"]
+    enabled: true
+
+  # Government-specific entities
+  - name: "PERMIT_NUMBER"
+    pattern: r'\b[Pp][Ee][Rr]\s*[:\-]?\s*[A-Za-z0-9]{6,12}\b'
+    description: "Permit or License Number"
+    confidence: 0.85
+    context: ["permit", "license", "authorization", "government"]
+    enabled: true
+
+  - name: "APPLICATION_ID"
+    pattern: r'\b[Aa][Pp][Pp]\s*[:\-]?\s*[A-Za-z0-9]{8,16}\b'
+    description: "Application Identification Number"
+    confidence: 0.8
+    context: ["application", "request", "submission", "form"]
+    enabled: true
+
+  # Research-specific entities
+  - name: "STUDY_ID"
+    pattern: r'\b[Ss][Tt][Uu][Dd][Yy]\s*[:\-]?\s*[A-Za-z0-9]{6,12}\b'
+    description: "Research Study Identification"
+    confidence: 0.85
+    context: ["study", "research", "experiment", "investigation"]
+    enabled: true
+
+  - name: "PARTICIPANT_ID"
+    pattern: r'\b[Pp][Aa][Rr]\s*[:\-]?\s*[A-Za-z0-9]{6,10}\b'
+    description: "Research Participant ID"
+    confidence: 0.9
+    context: ["participant", "subject", "research", "study", "experiment"]
+    enabled: true
+
+  # Additional custom patterns for specific use cases
+  - name: "CUSTOMER_REFERENCE"
+    pattern: r'\b[Cc][Rr]\s*[:\-]?\s*[A-Za-z0-9]{8,14}\b'
+    description: "Customer Reference Number"
+    confidence: 0.8
+    context: ["customer", "client", "service", "support"]
+    enabled: true
+
+  - name: "ORDER_NUMBER"
+    pattern: r'\b[Oo][Rr][Dd]\s*[:\-]?\s*[A-Za-z0-9]{8,16}\b'
+    description: "Order or Purchase Number"
+    confidence: 0.85
+    context: ["order", "purchase", "buy", "transaction", "sale"]
+    enabled: true
