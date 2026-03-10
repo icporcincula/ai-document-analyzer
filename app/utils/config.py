@@ -29,6 +29,39 @@ class Settings(BaseSettings):
     audit_log_max_file_size: int = 10 * 1024 * 1024  # 10MB
     audit_log_backup_count: int = 5
     
+    # PDF Configuration
+    pdf_max_file_size: int = 10 * 1024 * 1024  # 10MB
+    pdf_ocr_enabled: bool = True
+    pdf_ocr_language: str = "eng"
+    pdf_ocr_dpi: int = 300
+    
+    # DOCX Configuration
+    docx_max_file_size: int = 5 * 1024 * 1024  # 5MB
+    
+    # Image Configuration
+    image_max_file_size: int = 10 * 1024 * 1024  # 10MB
+    image_ocr_config: dict = {
+        "psm": 6,
+        "oem": 3,
+        "lang": "eng",
+        "enhance_contrast": True,
+        "denoise": True,
+        "threshold": True,
+        "correct_rotation": True,
+        "enhance_quality": True,
+        "preserve_interword_spaces": True
+    }
+    
+    # Text Configuration
+    text_max_file_size: int = 1 * 1024 * 1024  # 1MB
+    
+    # Language Detection Configuration
+    language_min_confidence: float = 0.8
+    language_max_text_length: int = 10000
+    
+    # Custom Entities Configuration
+    custom_entities_config_path: str = "config/custom_entities.yaml"
+    
     # Environment
     environment: str = "development"
     
