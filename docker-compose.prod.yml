@@ -1,0 +1,210 @@
+version: '3.8'
+
+services:
+  # Redis for Celery broker and result backend
+  redis:
+    image: redis:7.2-alpine
+    container_name: ai-document-analyzer-redis-prod
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-defaultpassword}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Celery Worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-document-analyzer-worker-prod
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - PRESIDIO_ANALYZER_API_URL=${PRESIDIO_ANALYZER_API_URL:-http://presidio-analyzer:3000}
+      - PRESIDIO_ANONYMIZER_API_URL=${PRESIDIO_ANONYMIZER_API_URL:-http://presidio-anonymizer:3001}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A celery_worker.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=100
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # Celery Beat Scheduler
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-document-analyzer-beat-prod
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - PRESIDIO_ANALYZER_API_URL=${PRESIDIO_ANALYZER_API_URL:-http://presidio-analyzer:3000}
+      - PRESIDIO_ANONYMIZER_API_URL=${PRESIDIO_ANONYMIZER_API_URL:-http://presidio-anonymizer:3001}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A celery_worker.celery_app beat --loglevel=info --scheduler celery.beat.PersistentScheduler
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  # Flower for task monitoring
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-document-analyzer-flower-prod
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - FLOWER_PORT=5555
+      - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH:-admin:admin}
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A celery_worker.celery_app flower --port=5555 --basic_auth=${FLOWER_BASIC_AUTH:-admin:admin}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  # Load Balancer (Nginx)
+  nginx:
+    image: nginx:1.24-alpine
+    container_name: ai-document-analyzer-nginx-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # API Service (Multiple instances for horizontal scaling)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - PRESIDIO_ANALYZER_API_URL=${PRESIDIO_ANALYZER_API_URL:-http://presidio-analyzer:3000}
+      - PRESIDIO_ANONYMIZER_API_URL=${PRESIDIO_ANONYMIZER_API_URL:-http://presidio-anonymizer:3001}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+      - API_PORT=8000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+
+  # Presidio Analyzer (External service)
+  presidio-analyzer:
+    image: mcr.microsoft.com/presidio/presidio-analyzer:latest
+    container_name: presidio-analyzer-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - ANALYZER_PORT=3000
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Presidio Anonymizer (External service)
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio/presidio-anonymizer:latest
+    container_name: presidio-anonymizer-prod
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - ANONYMIZER_PORT=3001
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: ai-document-analyzer-prod
