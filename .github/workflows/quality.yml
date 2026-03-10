@@ -1,0 +1,195 @@
+name: Quality Gates
+
+on:
+  push:
+    branches: [ develop, main, master ]
+  pull_request:
+    branches: [ develop, main, master ]
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          tesseract-ocr \
+          tesseract-ocr-eng \
+          poppler-utils \
+          libpoppler-cpp-dev \
+          python3-poppler
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Ruff linting
+      run: |
+        ruff check app/ tests/ --output-format=github
+
+    - name: Run Black formatting check
+      run: |
+        black --check --diff app/ tests/
+
+    - name: Run mypy type checking
+      run: |
+        mypy app/ --ignore-missing-imports --show-error-codes --show-column-numbers
+
+    - name: Check for security issues with Bandit
+      run: |
+        pip install bandit
+        bandit -r app/ -f json -o bandit-report.json
+        bandit -r app/ -f txt
+
+    - name: Check for secrets with TruffleHog
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+        trufflehog git . --no-update --only-verified
+
+    - name: Validate OpenAPI schema
+      run: |
+        pip install openapi-spec-validator
+        python -c "
+        import yaml
+        from openapi_spec_validator import validate_spec
+        with open('docs/openapi.yaml', 'r') as f:
+            spec = yaml.safe_load(f)
+        validate_spec(spec)
+        print('OpenAPI schema is valid')
+        "
+
+    - name: Check for TODO/FIXME comments
+      run: |
+        echo "Checking for TODO/FIXME comments..."
+        TODO_COUNT=$(grep -r "TODO\|FIXME\|XXX" app/ tests/ --include="*.py" | wc -l)
+        if [ $TODO_COUNT -gt 0 ]; then
+          echo "Found $TODO_COUNT TODO/FIXME comments:"
+          grep -r "TODO\|FIXME\|XXX" app/ tests/ --include="*.py"
+          exit 1
+        else
+          echo "No TODO/FIXME comments found"
+        fi
+
+    - name: Check for print statements
+      run: |
+        echo "Checking for print statements..."
+        PRINT_COUNT=$(grep -r "print(" app/ --include="*.py" | grep -v "tests/" | wc -l)
+        if [ $PRINT_COUNT -gt 0 ]; then
+          echo "Found $PRINT_COUNT print statements in production code:"
+          grep -r "print(" app/ --include="*.py" | grep -v "tests/"
+          exit 1
+        else
+          echo "No print statements found in production code"
+        fi
+
+    - name: Check for debug imports
+      run: |
+        echo "Checking for debug imports..."
+        DEBUG_COUNT=$(grep -r "import pdb\|from pdb import\|import ipdb\|from ipdb import" app/ --include="*.py" | wc -l)
+        if [ $DEBUG_COUNT -gt 0 ]; then
+          echo "Found $DEBUG_COUNT debug imports in production code:"
+          grep -r "import pdb\|from pdb import\|import ipdb\|from ipdb import" app/ --include="*.py"
+          exit 1
+        else
+          echo "No debug imports found in production code"
+        fi
+
+    - name: Check for hardcoded secrets
+      run: |
+        echo "Checking for hardcoded secrets..."
+        SECRET_PATTERNS="password.*=.*['\"]|api_key.*=.*['\"]|secret.*=.*['\"]|token.*=.*['\"]"
+        SECRET_COUNT=$(grep -r -i "$SECRET_PATTERNS" app/ --include="*.py" | grep -v "test_" | wc -l)
+        if [ $SECRET_COUNT -gt 0 ]; then
+          echo "Found $SECRET_COUNT potential hardcoded secrets:"
+          grep -r -i "$SECRET_PATTERNS" app/ --include="*.py" | grep -v "test_"
+          exit 1
+        else
+          echo "No hardcoded secrets found"
+        fi
+
+    - name: Check for unused imports
+      run: |
+        pip install unimport
+        unimport --check --diff app/ tests/
+
+    - name: Check for duplicate code
+      run: |
+        pip install vulture
+        vulture app/ --min-confidence 60
+
+    - name: Validate requirements.txt
+      run: |
+        python -c "
+        import ast
+        import sys
+        
+        with open('requirements.txt', 'r') as f:
+            content = f.read()
+        
+        # Check for empty lines at end
+        lines = content.strip().split('\n')
+        if not lines[-1]:
+            print('requirements.txt has trailing empty lines')
+            sys.exit(1)
+        
+        # Check for duplicate dependencies
+        deps = []
+        for line in lines:
+            if line.strip() and not line.strip().startswith('#'):
+                deps.append(line.strip())
+        
+        if len(deps) != len(set(deps)):
+            print('requirements.txt has duplicate dependencies')
+            sys.exit(1)
+        
+        print('requirements.txt is valid')
+        "
+
+    - name: Check Dockerfile best practices
+      run: |
+        docker run --rm -i hadolint/hadolint < Dockerfile
+
+    - name: Check for large files
+      run: |
+        echo "Checking for files larger than 1MB..."
+        LARGE_FILES=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./venv/*" -not -path "./node_modules/*")
+        if [ -n "$LARGE_FILES" ]; then
+          echo "Found large files:"
+          echo "$LARGE_FILES"
+          exit 1
+        else
+          echo "No large files found"
+        fi
+
+    - name: Check for proper license headers
+      run: |
+        echo "Checking for license headers in Python files..."
+        MISSING_HEADERS=$(find app/ tests/ -name "*.py" -exec grep -L "Copyright\|License" {} \;)
+        if [ -n "$MISSING_HEADERS" ]; then
+          echo "Files missing license headers:"
+          echo "$MISSING_HEADERS"
+          exit 1
+        else
+          echo "All Python files have license headers"
+        fi
