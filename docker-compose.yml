@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+  # Redis for rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: document-analyzer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - doc_analyzer_network
+    command: redis-server --appendonly yes
+
   # Main FastAPI Application
   api:
     build: .
@@ -15,16 +27,43 @@ services:
       - OPENAI_MODEL=${OPENAI_MODEL}
       - PRESIDIO_ANALYZER_URL=http://presidio-analyzer:3000
       - PRESIDIO_ANONYMIZER_URL=http://presidio-anonymizer:3000
-      - ENVIRONMENT=development
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - API_KEY=${API_KEY}
+      - ENABLE_AUTH=${ENABLE_AUTH:-true}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8000}
+      - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+      - RATE_LIMIT_REDIS_URL=redis://redis:6379/0
+      - AUDIT_LOG_ENABLED=${AUDIT_LOG_ENABLED:-true}
+      - AUDIT_LOG_FILE=/app/logs/audit.log
     volumes:
       - ./app:/app/app
       - ./main.py:/app/main.py
+      - ./logs:/app/logs
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - presidio-analyzer
       - presidio-anonymizer
+      - redis
     networks:
       - doc_analyzer_network
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Nginx reverse proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: document-analyzer-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - doc_analyzer_network
+    restart: unless-stopped
 
   # Presidio Analyzer
   presidio-analyzer:
@@ -55,6 +94,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
+volumes:
+  redis_data:
 
 networks:
   doc_analyzer_network:

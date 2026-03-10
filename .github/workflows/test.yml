@@ -1,0 +1,154 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ develop, main, master ]
+  pull_request:
+    branches: [ develop, main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          tesseract-ocr \
+          tesseract-ocr-eng \
+          poppler-utils \
+          libpoppler-cpp-dev \
+          python3-dev \
+          python3-pip \
+          python3-venv \
+          python3-pypdf2
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+        # Validate requirements.txt
+        python -c "
+        import sys
+        with open('requirements.txt', 'r') as f:
+            content = f.read().strip()
+        
+        # Check for empty lines at end
+        lines = content.split('\n')
+        if lines and not lines[-1].strip():
+            print('requirements.txt has trailing empty lines')
+            sys.exit(1)
+        
+        # Check for duplicate dependencies
+        deps = []
+        for line in lines:
+            if line.strip() and not line.strip().startswith('#'):
+                deps.append(line.strip())
+        
+        if len(deps) != len(set(deps)):
+            print('requirements.txt has duplicate dependencies')
+            sys.exit(1)
+        
+        print('requirements.txt is valid')
+        "
+
+    - name: Run linting with Ruff
+      run: |
+        ruff check app/ tests/ --output-format=github
+
+    - name: Run type checking with mypy
+      run: |
+        mypy app/ --ignore-missing-imports --show-error-codes --show-column-numbers
+
+    - name: Run code formatting check with Black
+      run: |
+        black --check --diff app/ tests/
+
+    - name: Run tests with pytest
+      run: |
+        # Create test environment
+        python -m venv test-venv
+        source test-venv/bin/activate
+        
+        # Install test dependencies
+        pip install -r requirements.txt
+        
+        # Run tests
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --tb=short
+        
+        # Check test coverage
+        coverage report --show-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload coverage reports to GitHub Actions
+      uses: codecov/upload-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  coverage:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests with coverage
+      run: |
+        # Create test environment
+        python -m venv test-venv
+        source test-venv/bin/activate
+        
+        # Install test dependencies
+        pip install -r requirements.txt
+        
+        # Run tests with coverage
+        pytest tests/ --cov=app --cov-report=xml --cov-fail-under=85
+
+    - name: Comment PR with coverage
+      uses: py-cov-action/python-coverage-comment-action@v3
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        MINIMUM_GREEN: 90%
+        MINIMUM_ORANGE: 80%

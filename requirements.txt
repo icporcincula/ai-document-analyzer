@@ -15,6 +15,33 @@ openai==1.10.0
 # HTTP Client for Presidio
 httpx==0.26.0
 
+# Security & Authentication
+slowapi==0.1.9
+aioredis==2.0.1ion
+
 # Utilities
 pydantic==2.5.3
 pydantic-settings==2.1.0
+
+# Testing Dependencies
+pytest==8.2.0
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+factory-boy==3.3.0
+
+# Development Dependencies
+black==24.3.0
+ruff==0.4.4
+mypy==1.9.0
+
+# Phase 4: Format & Language Expansion
+# DOCX Support
+python-docx==1.1.0
+python-pptx==0.6.21
+
+# Image Processing
+Pillow==10.2.0
+opencv-python==4.9.0.80
+
+# Multi-Language Support
+langdetect==1.0.9
