@@ -516,19 +516,88 @@ curl https://status.openai.com/
 ```
 
 ---
+---
 
-## **Roadmap**
+## 🗺️ Development Phases
 
-- [ ] Support for more document formats (DOCX, images, etc.)
-- [ ] Batch processing API endpoint
-- [ ] Database integration for storing results
-- [ ] User authentication and multi-tenancy
-- [ ] Custom entity recognizers (industry-specific PII)
-- [ ] Support for multiple languages
-- [ ] Web UI for document upload and results viewing
-- [ ] Webhook notifications for async processing
-- [ ] Export to multiple formats (CSV, Excel, JSON)
-- [ ] Performance metrics and monitoring dashboard
+### ✅ Phase 0 — Core MVP *(complete)*
+- PDF text extraction with direct + OCR fallback (Tesseract)
+- PII detection and anonymization via Microsoft Presidio
+- AI-powered structured field extraction via local Ollama or cloud LLM
+- Document type support: `contract`, `invoice`, `resume`, `auto`
+- Containerized deployment with Docker Compose
+- FastAPI with auto-generated Swagger docs
+
+---
+
+### ✅ Phase 1 — Hardening *(complete)*
+Stability and correctness fixes applied on top of the MVP.
+
+- **Replaced `PyPDF2` → `pypdf`** (actively maintained, better Unicode support)
+- **File size guard** — rejects uploads over 10 MB with a clear 422 error
+- **Page count guard** — rejects PDFs over 50 pages before OCR is attempted
+- **Async LLM calls** — `ExtractionService` now uses `AsyncOpenAI`; no more event-loop blocking
+- **Per-field confidence scoring** — LLM returns `{ value, confidence }` per field; overall score derived from field averages with a null-ratio penalty
+- **`MAX_CHARS` truncation** — documents over 15,000 chars are truncated before the LLM call to avoid silent context-limit failures
+- **`document_type` enum validation** — invalid values now return a proper 422 response instead of silently falling back
+- **Fixed `HealthResponse` schema** — `services` field was missing from the Pydantic model
+- **Removed raw PII from `AnonymizationResult`** — `original_text` no longer serialized to avoid accidental PII leakage
+- **`calculate_confidence` moved into `ExtractionService`** — removed fragile monkey-patch from `routes.py`
+
+---
+
+### 🔲 Phase 2 — Security & Auth
+*Target: before any client-facing deployment*
+
+- [ ] API key authentication middleware (`X-API-Key` header, disabled by default via env flag)
+- [ ] Lock down CORS `allow_origins` — replace `"*"` with explicit allow-list from env
+- [ ] HTTPS termination via Nginx reverse proxy (Docker Compose profile)
+- [ ] Rate limiting with `slowapi` (configurable per-route limits)
+- [ ] Structured audit log — log `document_id`, `pii_entity_count`, `document_type`, `processing_ms` per request (no raw text)
+
+---
+
+### 🔲 Phase 3 — Quality & Testing
+*Target: before sharing publicly or with clients*
+
+- [ ] `tests/` folder — unit tests per service (`pdf_service`, `presidio_client`, `extraction_service`)
+- [ ] Integration test with a real sample PDF per document type
+- [ ] Mocked Presidio client for CI (no live Docker dependency in tests)
+- [ ] Per-field confidence calibration — evaluate LLM confidence scores against ground-truth extractions
+- [ ] Prompt versioning — track which system prompt version produced each result
+
+---
+
+### 🔲 Phase 4 — Format & Language Expansion
+*Target: broader document coverage*
+
+- [ ] DOCX support via `python-docx`
+- [ ] Image input (PNG/JPEG) — route directly to OCR, skip PDF parsing
+- [ ] Multi-language support — expose `language` param; Presidio supports `en`, `de`, `es`, `fr`, `nl`, `it`, `pt`
+- [ ] Additional document types: `legal_brief`, `medical_record`, `bank_statement`
+- [ ] Custom entity recognizer config — allow clients to define domain-specific PII patterns (e.g. employee IDs, internal project codes)
+
+---
+
+### 🔲 Phase 5 — Scale & Async Processing
+*Target: production throughput*
+
+- [ ] Batch endpoint — accept a ZIP of PDFs, return array of results
+- [ ] Async job queue (Celery + Redis) for large documents — `/analyze/async` returns a `job_id`, `/jobs/{id}` polls status
+- [ ] Webhook callbacks — notify a URL when async processing completes
+- [ ] Horizontal scaling — stateless services behind a load balancer
+- [ ] Presidio service health-based circuit breaker
+
+---
+
+### 🔲 Phase 6 — Observability & Web UI
+*Target: operational visibility and self-service demos*
+
+- [ ] Prometheus metrics endpoint (`/metrics`) — request counts, latency percentiles, PII hit rates
+- [ ] Grafana dashboard (Docker Compose profile)
+- [ ] Simple web UI — drag-and-drop PDF upload, results viewer with PII entity highlights
+- [ ] Export results to CSV / Excel / JSON
+- [ ] Result storage — optional PostgreSQL persistence with TTL-based auto-deletion for GDPR compliance
 
 ---
 
